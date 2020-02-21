@@ -38,6 +38,9 @@ pub use crate::env::environment_syncer::EnvironmentSyncer;
 pub use crate::env::host::BasicHost;
 pub use nu_value_ext::ValueExt;
 pub use num_traits::cast::ToPrimitive;
+pub use crate::commands::command::*;
+pub use crate::context::CommandRegistry;
+pub use crate::stream::OutputStream;
 
 // TODO: Temporary redirect
 pub use nu_protocol::{did_you_mean, TaggedDictBuilder};

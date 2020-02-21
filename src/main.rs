@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "Welcome to Nushell {} (type 'help' for more info)",
                 clap::crate_version!()
             );
-            futures::executor::block_on(nu_cli::cli())?;
+            futures::executor::block_on(nu_cli::cli(None, None))?;
         }
     }
 

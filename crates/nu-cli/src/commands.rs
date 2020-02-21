@@ -13,7 +13,7 @@ pub(crate) mod calc;
 pub(crate) mod cd;
 pub(crate) mod classified;
 pub(crate) mod clip;
-pub(crate) mod command;
+pub mod command;
 pub(crate) mod compact;
 pub(crate) mod config;
 pub(crate) mod count;
