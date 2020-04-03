@@ -1,11 +1,10 @@
 #![cfg(not(feature = "starship-prompt"))]
 
-//use git2::{Repository, RepositoryOpenFlags};
-//use std::ffi::OsString;
+use git2::{Repository, RepositoryOpenFlags};
+use std::ffi::OsString;
 
 pub fn current_branch() -> Option<String> {
-    None
-    /*let v: Vec<OsString> = vec![];
+    let v: Vec<OsString> = vec![];
     match Repository::open_ext(".", RepositoryOpenFlags::empty(), v) {
         Ok(repo) => {
             let r = repo.head();
@@ -18,5 +17,5 @@ pub fn current_branch() -> Option<String> {
             }
         }
         _ => None,
-    }*/
+    }
 }
