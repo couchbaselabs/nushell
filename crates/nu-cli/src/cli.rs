@@ -495,7 +495,7 @@ pub async fn cli(sy: Option<crate::env::environment_syncer::EnvironmentSyncer>, 
 
     let mut context = match ctx {
         Some(c) => c,
-        None => create_default_context(&mut syncer)?
+        None => create_default_context(&mut syncer, true)?
     };
 
     let _ = load_plugins(&mut context);
