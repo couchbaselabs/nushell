@@ -2087,7 +2087,7 @@ dependencies = [
 
 [[package]]
 name = "nu"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "clap",
  "crossterm",
@@ -2111,6 +2111,7 @@ dependencies = [
  "nu_plugin_match",
  "nu_plugin_post",
  "nu_plugin_ps",
+ "nu_plugin_start",
  "nu_plugin_str",
  "nu_plugin_sys",
  "nu_plugin_textview",
@@ -2125,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "nu-build"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "lazy_static 1.4.0",
  "serde 1.0.106",
@@ -2135,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "nu-cli"
-version = "0.13.1"
+version = "0.14.1"
 dependencies = [
  "ansi_term 0.12.1",
  "app_dirs",
@@ -2193,6 +2194,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
+ "rayon",
  "regex",
  "roxmltree",
  "rusqlite",
@@ -2222,12 +2224,13 @@ dependencies = [
 
 [[package]]
 name = "nu-errors"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "ansi_term 0.12.1",
  "bigdecimal",
  "derive-new",
  "getset",
+ "glob",
  "language-reporting",
  "nu-build",
  "nu-source",
@@ -2241,7 +2244,7 @@ dependencies = [
 
 [[package]]
 name = "nu-parser"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "bigdecimal",
  "derive-new",
@@ -2260,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "nu-plugin"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "indexmap",
  "nu-build",
@@ -2275,7 +2278,7 @@ dependencies = [
 
 [[package]]
 name = "nu-protocol"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "ansi_term 0.12.1",
  "bigdecimal",
@@ -2303,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "nu-source"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "derive-new",
  "getset",
@@ -2316,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "nu-test-support"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "app_dirs",
  "dunce",
@@ -2332,7 +2335,7 @@ dependencies = [
 
 [[package]]
 name = "nu-value-ext"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "indexmap",
  "itertools 0.9.0",
@@ -2346,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_average"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "nu-build",
  "nu-errors",
@@ -2357,7 +2360,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_binaryview"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "ansi_term 0.12.1",
  "crossterm",
@@ -2374,7 +2377,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_fetch"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "futures 0.3.3",
  "nu-build",
@@ -2388,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_inc"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "nu-build",
  "nu-errors",
@@ -2401,7 +2404,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_match"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "futures 0.3.3",
  "nu-build",
@@ -2414,7 +2417,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_post"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "base64 0.12.0",
  "futures 0.3.3",
@@ -2431,7 +2434,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_ps"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "futures 0.3.3",
  "futures-timer 3.0.2",
@@ -2444,8 +2447,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nu_plugin_start"
+version = "0.1.0"
+dependencies = [
+ "nu-build",
+ "nu-errors",
+ "nu-plugin",
+ "nu-protocol",
+ "nu-source",
+ "open",
+ "url",
+]
+
+[[package]]
 name = "nu_plugin_str"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "chrono",
  "nu-build",
@@ -2460,7 +2476,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_sys"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "battery",
  "futures 0.3.3",
@@ -2475,7 +2491,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_textview"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "ansi_term 0.12.1",
  "crossterm",
@@ -2490,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_tree"
-version = "0.13.0"
+version = "0.14.1"
 dependencies = [
  "derive-new",
  "nu-build",
