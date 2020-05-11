@@ -51,7 +51,7 @@ pub(crate) mod from_yaml;
 pub(crate) mod get;
 pub(crate) mod group_by;
 pub(crate) mod headers;
-pub(crate) mod help;
+pub mod help;
 pub(crate) mod histogram;
 pub(crate) mod history;
 pub(crate) mod insert;

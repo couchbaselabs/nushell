@@ -14,7 +14,7 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 mod cli;
-mod commands;
+pub mod commands;
 mod context;
 mod data;
 mod deserializer;
@@ -41,6 +41,7 @@ pub use num_traits::cast::ToPrimitive;
 pub use crate::commands::command::*;
 pub use crate::context::CommandRegistry;
 pub use crate::stream::OutputStream;
+pub use crate::commands::*;
 
 // TODO: Temporary redirect
 pub use nu_protocol::{did_you_mean, TaggedDictBuilder};
