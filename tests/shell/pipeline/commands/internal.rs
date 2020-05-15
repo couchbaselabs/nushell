@@ -28,7 +28,7 @@ fn takes_rows_of_nu_value_strings_and_pipes_it_to_stdin_of_external() {
             "#
         ));
 
-        assert_eq!(actual, "AndKitKat");
+        assert_eq!(actual.out, "AndKitKat");
     })
 }
 
@@ -39,11 +39,11 @@ fn can_process_one_row_from_internal_and_pipes_it_to_stdin_of_external() {
         r#"echo "nushelll" | chop"#
     );
 
-    assert_eq!(actual, "nushell");
+    assert_eq!(actual.out, "nushell");
 }
 
 mod parse {
-    use nu_test_support::nu_error;
+    use nu_test_support::nu;
 
     /*
         The debug command's signature is:
@@ -58,56 +58,58 @@ mod parse {
 
     #[test]
     fn errors_if_flag_passed_is_not_exact() {
-        let actual = nu_error!(cwd: ".", "debug -ra");
+        let actual = nu!(cwd: ".", "debug -ra");
 
         assert!(
-            actual.contains("unexpected flag"),
+            actual.err.contains("unexpected flag"),
             format!(
                 "error message '{}' should contain 'unexpected flag'",
-                actual
+                actual.err
             )
         );
 
-        let actual = nu_error!(cwd: ".", "debug --rawx");
+        let actual = nu!(cwd: ".", "debug --rawx");
 
         assert!(
-            actual.contains("unexpected flag"),
+            actual.err.contains("unexpected flag"),
             format!(
                 "error message '{}' should contain 'unexpected flag'",
-                actual
+                actual.err
             )
         );
     }
 
     #[test]
     fn errors_if_flag_is_not_supported() {
-        let actual = nu_error!(cwd: ".", "debug --ferris");
+        let actual = nu!(cwd: ".", "debug --ferris");
 
         assert!(
-            actual.contains("unexpected flag"),
+            actual.err.contains("unexpected flag"),
             format!(
                 "error message '{}' should contain 'unexpected flag'",
-                actual
+                actual.err
             )
         );
     }
 
     #[test]
     fn errors_if_passed_an_unexpected_argument() {
-        let actual = nu_error!(cwd: ".", "debug ferris");
+        let actual = nu!(cwd: ".", "debug ferris");
 
         assert!(
-            actual.contains("unexpected argument"),
+            actual.err.contains("unexpected argument"),
             format!(
                 "error message '{}' should contain 'unexpected argument'",
-                actual
+                actual.err
             )
         );
     }
 }
 
 mod tilde_expansion {
-    use super::nu;
+    use nu_test_support::fs::Stub::EmptyFile;
+    use nu_test_support::playground::Playground;
+    use nu_test_support::{nu, pipeline};
 
     #[test]
     #[should_panic]
@@ -120,8 +122,8 @@ mod tilde_expansion {
         );
 
         assert!(
-            !actual.contains('~'),
-            format!("'{}' should not contain ~", actual)
+            !actual.out.contains('~'),
+            format!("'{}' should not contain ~", actual.out)
         );
     }
 
@@ -134,6 +136,30 @@ mod tilde_expansion {
                 "#
         );
 
-        assert_eq!(actual, "1~1");
+        assert_eq!(actual.out, "1~1");
+    }
+
+    #[test]
+    fn proper_it_expansion() {
+        Playground::setup("ls_test_1", |dirs, sandbox| {
+            sandbox.with_files(vec![
+                EmptyFile("andres.txt"),
+                EmptyFile("gedge.txt"),
+                EmptyFile("jonathan.txt"),
+                EmptyFile("yehuda.txt"),
+            ]);
+
+            let actual = nu!(
+                cwd: dirs.test(), pipeline(
+                r#"
+                    ls | sort-by name | group-by type | each { get File.name | echo $it } | to json
+                "#
+            ));
+
+            assert_eq!(
+                actual.out,
+                r#"["andres.txt","gedge.txt","jonathan.txt","yehuda.txt"]"#
+            );
+        })
     }
 }

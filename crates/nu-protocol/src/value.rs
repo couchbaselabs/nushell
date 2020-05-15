@@ -3,14 +3,16 @@ mod convert;
 mod debug;
 pub mod dict;
 pub mod evaluate;
+pub mod iter;
 pub mod primitive;
 pub mod range;
 mod serde_bigdecimal;
 mod serde_bigint;
 
+use crate::hir;
 use crate::type_name::{ShellTypeName, SpannedTypeName};
 use crate::value::dict::Dictionary;
-use crate::value::evaluate::Evaluate;
+use crate::value::iter::{RowValueIter, TableValueIter};
 use crate::value::primitive::Primitive;
 use crate::value::range::{Range, RangeInclusion};
 use crate::{ColumnPath, PathMember};
@@ -20,6 +22,7 @@ use indexmap::IndexMap;
 use nu_errors::ShellError;
 use nu_source::{AnchorLocation, HasSpan, Span, Spanned, Tag};
 use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -29,16 +32,18 @@ use std::time::SystemTime;
 pub enum UntaggedValue {
     /// A primitive (or fundamental) type of values
     Primitive(Primitive),
+
     /// A table row
     Row(Dictionary),
+
     /// A full inner (or embedded) table
     Table(Vec<Value>),
 
     /// An error value that represents an error that occurred as the values in the pipeline were built
     Error(ShellError),
 
-    /// A block of Nu code, eg `{ ls | get name }`
-    Block(Evaluate),
+    /// A block of Nu code, eg `{ ls | get name ; echo "done" }`
+    Block(hir::Block),
 }
 
 impl UntaggedValue {
@@ -122,6 +127,19 @@ impl UntaggedValue {
         }
     }
 
+    /// Expect this value to be an integer and return it
+    pub fn expect_int(&self) -> i64 {
+        let big_int = match self {
+            UntaggedValue::Primitive(Primitive::Int(int)) => Some(int),
+            _ => None,
+        };
+
+        match big_int.and_then(|i| i.to_i64()) {
+            Some(i) => i,
+            _ => panic!("expect_int assumes that the value must be a integer"),
+        }
+    }
+
     /// Helper for creating row values
     pub fn row(entries: IndexMap<String, Value>) -> UntaggedValue {
         UntaggedValue::Row(entries.into())
@@ -193,7 +211,7 @@ impl UntaggedValue {
     }
 
     /// Helper for creating date duration values
-    pub fn duration(secs: u64) -> UntaggedValue {
+    pub fn duration(secs: i64) -> UntaggedValue {
         UntaggedValue::Primitive(Primitive::Duration(secs))
     }
 
@@ -249,7 +267,17 @@ impl Value {
         match &self.value {
             UntaggedValue::Primitive(Primitive::String(string)) => Ok(string.clone()),
             UntaggedValue::Primitive(Primitive::Line(line)) => Ok(line.clone() + "\n"),
+            UntaggedValue::Primitive(Primitive::Path(path)) => {
+                Ok(path.to_string_lossy().to_string())
+            }
             _ => Err(ShellError::type_error("string", self.spanned_type_name())),
+        }
+    }
+
+    pub fn format(&self, fmt: &str) -> Result<String, ShellError> {
+        match &self.value {
+            UntaggedValue::Primitive(Primitive::Date(dt)) => Ok(dt.format(fmt).to_string()),
+            _ => Err(ShellError::type_error("date", self.spanned_type_name())),
         }
     }
 
@@ -294,6 +322,39 @@ impl Value {
         match &self.value {
             UntaggedValue::Primitive(Primitive::Boolean(p)) => Ok(*p),
             _ => Err(ShellError::type_error("boolean", self.spanned_type_name())),
+        }
+    }
+
+    /// Returns an iterator of the values rows
+    pub fn table_entries(&self) -> TableValueIter<'_> {
+        crate::value::iter::table_entries(&self)
+    }
+
+    /// Returns an iterator of the value's cells
+    pub fn row_entries(&self) -> RowValueIter<'_> {
+        crate::value::iter::row_entries(&self)
+    }
+
+    /// Returns true if the value is empty
+    pub fn is_empty(&self) -> bool {
+        match &self {
+            Value {
+                value: UntaggedValue::Primitive(p),
+                ..
+            } => p.is_empty(),
+            t
+            @
+            Value {
+                value: UntaggedValue::Table(_),
+                ..
+            } => t.table_entries().all(|row| row.is_empty()),
+            r
+            @
+            Value {
+                value: UntaggedValue::Row(_),
+                ..
+            } => r.row_entries().all(|(_, value)| value.is_empty()),
+            _ => false,
         }
     }
 }
@@ -377,4 +438,79 @@ impl From<ShellError> for UntaggedValue {
     fn from(e: ShellError) -> Self {
         UntaggedValue::Error(e)
     }
+}
+
+impl num_traits::Zero for Value {
+    fn zero() -> Self {
+        Value {
+            value: UntaggedValue::Primitive(Primitive::zero()),
+            tag: Tag::unknown(),
+        }
+    }
+
+    fn is_zero(&self) -> bool {
+        match &self.value {
+            UntaggedValue::Primitive(primitive) => primitive.is_zero(),
+            UntaggedValue::Row(row) => row.entries.is_empty(),
+            UntaggedValue::Table(rows) => rows.is_empty(),
+            _ => false,
+        }
+    }
+}
+
+impl std::ops::Mul for Value {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        let tag = self.tag.clone();
+
+        match (&*self, &*rhs) {
+            (UntaggedValue::Primitive(left), UntaggedValue::Primitive(right)) => {
+                let left = left.clone();
+                let right = right.clone();
+
+                UntaggedValue::from(left.mul(right)).into_value(tag)
+            }
+            (_, _) => unimplemented!("Internal error: can't multiply non-primitives."),
+        }
+    }
+}
+
+impl std::ops::Add for Value {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let tag = self.tag.clone();
+
+        match (&*self, &*rhs) {
+            (UntaggedValue::Primitive(left), UntaggedValue::Primitive(right)) => {
+                let left = left.clone();
+                let right = right.clone();
+
+                UntaggedValue::from(left.add(right)).into_value(tag)
+            }
+            (_, _) => unimplemented!("Internal error: can't add non-primitives."),
+        }
+    }
+}
+
+pub fn merge_descriptors(values: &[Value]) -> Vec<String> {
+    let mut ret: Vec<String> = vec![];
+    let value_column = "".to_string();
+    for value in values {
+        let descs = value.data_descriptors();
+
+        if descs.is_empty() {
+            if !ret.contains(&value_column) {
+                ret.push("".to_string());
+            }
+        } else {
+            for desc in value.data_descriptors() {
+                if !ret.contains(&desc) {
+                    ret.push(desc);
+                }
+            }
+        }
+    }
+    ret
 }

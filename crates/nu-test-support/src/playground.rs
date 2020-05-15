@@ -1,4 +1,4 @@
-use crate::fs::line_ending;
+use crate::fs;
 use crate::fs::Stub;
 
 use getset::Getters;
@@ -52,17 +52,9 @@ impl Playground {
             cwd: nuplay_dir,
         };
 
-        let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let playground_root = playground.root.path();
 
-        let fixtures = project_root;
-        let fixtures = fixtures
-            .parent()
-            .expect("Couldn't find the fixtures directory")
-            .parent()
-            .expect("Couldn't find the fixtures directory")
-            .join("tests/fixtures");
-
+        let fixtures = fs::fixtures();
         let fixtures = dunce::canonicalize(fixtures.clone()).unwrap_or_else(|e| {
             panic!(
                 "Couldn't canonicalize fixtures path {}: {:?}",
@@ -103,8 +95,35 @@ impl Playground {
         self
     }
 
+    pub fn symlink(&mut self, from: impl AsRef<Path>, to: impl AsRef<Path>) -> &mut Self {
+        let from = self.cwd.join(from);
+        let to = self.cwd.join(to);
+
+        let create_symlink = {
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink
+            }
+
+            #[cfg(windows)]
+            {
+                if from.is_file() {
+                    std::os::windows::fs::symlink_file
+                } else if from.is_dir() {
+                    std::os::windows::fs::symlink_dir
+                } else {
+                    panic!("symlink from must be a file or dir")
+                }
+            }
+        };
+
+        create_symlink(from, to).expect("can not create symlink");
+        self.back_to_playground();
+        self
+    }
+
     pub fn with_files(&mut self, files: Vec<Stub>) -> &mut Self {
-        let endl = line_ending();
+        let endl = fs::line_ending();
 
         files
             .iter()

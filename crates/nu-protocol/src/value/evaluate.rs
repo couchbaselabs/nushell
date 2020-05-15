@@ -1,18 +1,16 @@
 use crate::value::{Primitive, UntaggedValue, Value};
 use indexmap::IndexMap;
-use nu_errors::ShellError;
-use query_interface::{interfaces, vtable_for, Object, ObjectHash};
 use serde::{Deserialize, Serialize};
-use std::cmp::{Ord, Ordering, PartialOrd};
 use std::fmt::Debug;
 
 /// An evaluation scope. Scopes map variable names to Values and aid in evaluating blocks and expressions.
 /// Additionally, holds the value for the special $it variable, a variable used to refer to the value passing
 /// through the pipeline at that moment
-#[derive(Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Scope {
     pub it: Value,
     pub vars: IndexMap<String, Value>,
+    pub env: IndexMap<String, String>,
 }
 
 impl Scope {
@@ -21,6 +19,7 @@ impl Scope {
         Scope {
             it,
             vars: IndexMap::new(),
+            env: IndexMap::new(),
         }
     }
 }
@@ -31,6 +30,7 @@ impl Scope {
         Scope {
             it: UntaggedValue::Primitive(Primitive::Nothing).into_untagged_value(),
             vars: IndexMap::new(),
+            env: IndexMap::new(),
         }
     }
 
@@ -39,70 +39,43 @@ impl Scope {
         Scope {
             it: value,
             vars: IndexMap::new(),
+            env: IndexMap::new(),
+        }
+    }
+
+    pub fn env(env: IndexMap<String, String>) -> Scope {
+        Scope {
+            it: UntaggedValue::Primitive(Primitive::Nothing).into_untagged_value(),
+            vars: IndexMap::new(),
+            env,
+        }
+    }
+
+    pub fn set_it(self, value: Value) -> Scope {
+        Scope {
+            it: value,
+            vars: self.vars,
+            env: self.env,
+        }
+    }
+
+    pub fn set_var(self, name: String, value: Value) -> Scope {
+        let mut new_vars = self.vars.clone();
+        new_vars.insert(name, value);
+        Scope {
+            it: self.it,
+            vars: new_vars,
+            env: self.env,
+        }
+    }
+
+    pub fn set_env_var(self, variable: String, value: String) -> Scope {
+        let mut new_env_vars = self.env.clone();
+        new_env_vars.insert(variable, value);
+        Scope {
+            it: self.it,
+            vars: self.vars,
+            env: new_env_vars,
         }
     }
 }
-
-#[typetag::serde(tag = "type")]
-pub trait EvaluateTrait: Debug + Send + Sync + Object + ObjectHash + 'static {
-    fn invoke(&self, scope: &Scope) -> Result<Value, ShellError>;
-    fn clone_box(&self) -> Evaluate;
-}
-
-interfaces!(Evaluate: dyn ObjectHash);
-
-#[typetag::serde]
-impl EvaluateTrait for Evaluate {
-    fn invoke(&self, scope: &Scope) -> Result<Value, ShellError> {
-        self.expr.invoke(scope)
-    }
-
-    fn clone_box(&self) -> Evaluate {
-        self.expr.clone_box()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Evaluate {
-    expr: Box<dyn EvaluateTrait>,
-}
-
-impl Evaluate {
-    pub fn new(evaluate: impl EvaluateTrait) -> Evaluate {
-        Evaluate {
-            expr: Box::new(evaluate),
-        }
-    }
-}
-
-impl std::hash::Hash for Evaluate {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.expr.obj_hash(state)
-    }
-}
-
-impl Clone for Evaluate {
-    fn clone(&self) -> Evaluate {
-        self.expr.clone_box()
-    }
-}
-
-impl Ord for Evaluate {
-    fn cmp(&self, _: &Self) -> Ordering {
-        Ordering::Equal
-    }
-}
-
-impl PartialOrd for Evaluate {
-    fn partial_cmp(&self, _: &Evaluate) -> Option<Ordering> {
-        Some(Ordering::Equal)
-    }
-}
-
-impl PartialEq for Evaluate {
-    fn eq(&self, _: &Evaluate) -> bool {
-        true
-    }
-}
-
-impl Eq for Evaluate {}

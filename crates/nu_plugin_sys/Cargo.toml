@@ -1,7 +1,7 @@
 [package]
 name = "nu_plugin_sys"
-version = "0.10.0"
-authors = ["Yehuda Katz <wycats@gmail.com>", "Jonathan Turner <jonathan.d.turner@gmail.com>", "Andrés N. Robalino <andres@androbtech.com>"]
+version = "0.14.1"
+authors = ["The Nu Project Contributors"]
 edition = "2018"
 description = "A system info plugin for Nushell"
 license = "MIT"
@@ -10,20 +10,20 @@ license = "MIT"
 doctest = false
 
 [dependencies]
-nu-plugin = { path = "../nu-plugin", version = "0.10.0" }
-nu-protocol = { path = "../nu-protocol", version = "0.10.0" }
-nu-source = { path = "../nu-source", version = "0.10.0" }
-nu-errors = { path = "../nu-errors", version = "0.10.0" }
+nu-plugin = { path = "../nu-plugin", version = "0.14.1" }
+nu-protocol = { path = "../nu-protocol", version = "0.14.1" }
+nu-source = { path = "../nu-source", version = "0.14.1" }
+nu-errors = { path = "../nu-errors", version = "0.14.1" }
 
 futures = { version = "0.3", features = ["compat", "io-compat"] }
 battery = "0.7.5"
-futures-util = "0.3.1"
+futures-util = "0.3.4"
 
 [dependencies.heim]
-version = "0.0.9"
+version = "0.0.10"
 default-features = false
 
 features = ["host", "cpu", "memory", "disk", "net", "sensors", "runtime-polyfill"]
 
 [build-dependencies]
-nu-build = { version = "0.10.0", path = "../nu-build" }
+nu-build = { version = "0.14.1", path = "../nu-build" }

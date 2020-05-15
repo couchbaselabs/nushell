@@ -1,15 +1,15 @@
 use nu_test_support::fs::Stub::FileWithContent;
 use nu_test_support::playground::Playground;
-use nu_test_support::{nu, nu_error, pipeline};
+use nu_test_support::{nu, pipeline};
 
 #[test]
 fn can_only_apply_one() {
-    let actual = nu_error!(
+    let actual = nu!(
         cwd: "tests/fixtures/formats",
         "open caco3_plastics.csv | first 1 | str origin --downcase --upcase"
     );
 
-    assert!(actual.contains(r#"--downcase|--upcase|--to-int|--substring "start,end"|--replace|--find-replace [pattern replacement]]"#));
+    assert!(actual.err.contains(r#"--capitalize|--downcase|--upcase|--to-int|--substring "start,end"|--replace|--find-replace [pattern replacement]|to-date-time|--trim]"#));
 }
 
 #[test]
@@ -29,13 +29,53 @@ fn acts_without_passing_field() {
             "open sample.yml | get environment.global.PROJECT_NAME | str --upcase | echo $it"
         );
 
-        assert_eq!(actual, "NUSHELL");
+        assert_eq!(actual.out, "NUSHELL");
+    })
+}
+
+#[test]
+fn trims() {
+    Playground::setup("plugin_str_test_2", |dirs, sandbox| {
+        sandbox.with_files(vec![FileWithContent(
+            "sample.toml",
+            r#"
+                    [dependency]
+                    name = "nu "
+                "#,
+        )]);
+
+        let actual = nu!(
+            cwd: dirs.test(),
+            "open sample.toml | str dependency.name --trim | get dependency.name | echo $it"
+        );
+
+        assert_eq!(actual.out, "nu");
+    })
+}
+
+#[test]
+fn capitalizes() {
+    Playground::setup("plugin_str_test_3", |dirs, sandbox| {
+        sandbox.with_files(vec![FileWithContent(
+            "sample.toml",
+            r#"
+                    [dependency]
+                    name = "nu"
+                "#,
+        )]);
+
+        let actual = nu!(
+            cwd: dirs.test(),
+            "open sample.toml | str dependency.name --capitalize | get dependency.name | echo $it"
+        );
+
+        assert_eq!(actual.out, "Nu");
     })
 }
 
 #[test]
 fn downcases() {
-    Playground::setup("plugin_str_test_2", |dirs, sandbox| {
+    Playground::setup("plugin_str_test_4", |dirs, sandbox| {
         sandbox.with_files(vec![FileWithContent(
             "sample.toml",
             r#"
@@ -49,13 +89,13 @@ fn downcases() {
             "open sample.toml | str dependency.name -d | get dependency.name | echo $it"
         );
 
-        assert_eq!(actual, "light");
+        assert_eq!(actual.out, "light");
     })
 }
 
 #[test]
 fn upcases() {
-    Playground::setup("plugin_str_test_3", |dirs, sandbox| {
+    Playground::setup("plugin_str_test_5", |dirs, sandbox| {
         sandbox.with_files(vec![FileWithContent(
             "sample.toml",
             r#"
@@ -69,7 +109,7 @@ fn upcases() {
             "open sample.toml | str package.name --upcase | get package.name | echo $it"
         );
 
-        assert_eq!(actual, "NUSHELL");
+        assert_eq!(actual.out, "NUSHELL");
     })
 }
 
@@ -78,21 +118,22 @@ fn converts_to_int() {
     let actual = nu!(
         cwd: "tests/fixtures/formats", pipeline(
         r#"
-            open caco3_plastics.csv
-            | first 1
-            | str tariff_item --to-int
-            | where tariff_item == 2509000000
-            | get tariff_item
+            echo '{number_as_string: "1"}'
+            | from json
+            | str number_as_string --to-int
+            | rename number
+            | where number == 1
+            | get number
             | echo $it
         "#
     ));
 
-    assert_eq!(actual, "2509000000");
+    assert_eq!(actual.out, "1");
 }
 
 #[test]
 fn replaces() {
-    Playground::setup("plugin_str_test_4", |dirs, sandbox| {
+    Playground::setup("plugin_str_test_5", |dirs, sandbox| {
         sandbox.with_files(vec![FileWithContent(
             "sample.toml",
             r#"
@@ -111,13 +152,13 @@ fn replaces() {
              "#
         ));
 
-        assert_eq!(actual, "wykittenshell");
+        assert_eq!(actual.out, "wykittenshell");
     })
 }
 
 #[test]
 fn find_and_replaces() {
-    Playground::setup("plugin_str_test_5", |dirs, sandbox| {
+    Playground::setup("plugin_str_test_6", |dirs, sandbox| {
         sandbox.with_files(vec![FileWithContent(
             "sample.toml",
             r#"
@@ -136,13 +177,13 @@ fn find_and_replaces() {
              "#
         ));
 
-        assert_eq!(actual, "1-800-5289");
+        assert_eq!(actual.out, "1-800-5289");
     })
 }
 
 #[test]
 fn find_and_replaces_without_passing_field() {
-    Playground::setup("plugin_str_test_6", |dirs, sandbox| {
+    Playground::setup("plugin_str_test_7", |dirs, sandbox| {
         sandbox.with_files(vec![FileWithContent(
             "sample.toml",
             r#"
@@ -161,6 +202,6 @@ fn find_and_replaces_without_passing_field() {
              "#
         ));
 
-        assert_eq!(actual, "1-800-5289");
+        assert_eq!(actual.out, "1-800-5289");
     })
 }

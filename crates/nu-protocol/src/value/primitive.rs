@@ -8,6 +8,7 @@ use nu_errors::{ExpectedRange, ShellError};
 use nu_source::{PrettyDebug, Span, SpannedItem};
 use num_bigint::BigInt;
 use num_traits::cast::{FromPrimitive, ToPrimitive};
+use num_traits::identities::Zero;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -40,7 +41,7 @@ pub enum Primitive {
     /// A date value, in UTC
     Date(DateTime<Utc>),
     /// A count in the number of seconds
-    Duration(u64),
+    Duration(i64),
     /// A range of values
     Range(Box<Range>),
     /// A file path
@@ -73,12 +74,114 @@ impl Primitive {
             )),
         }
     }
+
+    pub fn into_string(self, span: Span) -> Result<String, ShellError> {
+        match self {
+            Primitive::String(s) => Ok(s),
+            other => Err(ShellError::type_error(
+                "string",
+                other.type_name().spanned(span),
+            )),
+        }
+    }
+
+    /// Returns true if the value is empty
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Primitive::Nothing => true,
+            Primitive::String(s) => s.is_empty(),
+            _ => false,
+        }
+    }
+}
+
+impl num_traits::Zero for Primitive {
+    fn zero() -> Self {
+        Primitive::Int(BigInt::zero())
+    }
+
+    fn is_zero(&self) -> bool {
+        match self {
+            Primitive::Int(int) => int.is_zero(),
+            Primitive::Decimal(decimal) => decimal.is_zero(),
+            Primitive::Bytes(size) => size.is_zero(),
+            Primitive::Nothing => true,
+            _ => false,
+        }
+    }
+}
+
+impl std::ops::Add for Primitive {
+    type Output = Primitive;
+
+    fn add(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Primitive::Int(left), Primitive::Int(right)) => Primitive::Int(left + right),
+            (Primitive::Int(left), Primitive::Decimal(right)) => {
+                Primitive::Decimal(BigDecimal::from(left) + right)
+            }
+            (Primitive::Decimal(left), Primitive::Decimal(right)) => {
+                Primitive::Decimal(left + right)
+            }
+            (Primitive::Decimal(left), Primitive::Int(right)) => {
+                Primitive::Decimal(left + BigDecimal::from(right))
+            }
+            (Primitive::Bytes(left), right) => match right {
+                Primitive::Bytes(right) => Primitive::Bytes(left + right),
+                Primitive::Int(right) => {
+                    Primitive::Bytes(left + right.to_u64().unwrap_or_else(|| 0 as u64))
+                }
+                Primitive::Decimal(right) => {
+                    Primitive::Bytes(left + right.to_u64().unwrap_or_else(|| 0 as u64))
+                }
+                _ => Primitive::Bytes(left),
+            },
+            (left, Primitive::Bytes(right)) => match left {
+                Primitive::Bytes(left) => Primitive::Bytes(left + right),
+                Primitive::Int(left) => {
+                    Primitive::Bytes(left.to_u64().unwrap_or_else(|| 0 as u64) + right)
+                }
+                Primitive::Decimal(left) => {
+                    Primitive::Bytes(left.to_u64().unwrap_or_else(|| 0 as u64) + right)
+                }
+                _ => Primitive::Bytes(right),
+            },
+            _ => Primitive::zero(),
+        }
+    }
+}
+
+impl std::ops::Mul for Primitive {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Primitive::Int(left), Primitive::Int(right)) => Primitive::Int(left * right),
+            (Primitive::Int(left), Primitive::Decimal(right)) => {
+                Primitive::Decimal(BigDecimal::from(left) * right)
+            }
+            (Primitive::Decimal(left), Primitive::Decimal(right)) => {
+                Primitive::Decimal(left * right)
+            }
+            (Primitive::Decimal(left), Primitive::Int(right)) => {
+                Primitive::Decimal(left * BigDecimal::from(right))
+            }
+            _ => unimplemented!("Internal error: can't multiply incompatible primitives."),
+        }
+    }
 }
 
 impl From<BigDecimal> for Primitive {
     /// Helper to convert from decimals to a Primitive value
     fn from(decimal: BigDecimal) -> Primitive {
         Primitive::Decimal(decimal)
+    }
+}
+
+impl From<BigInt> for Primitive {
+    /// Helper to convert from integers to a Primitive value
+    fn from(int: BigInt) -> Primitive {
+        Primitive::Int(int)
     }
 }
 
@@ -182,7 +285,7 @@ pub fn format_primitive(primitive: &Primitive, field_name: Option<&String>) -> S
 }
 
 /// Format a duration in seconds into a string
-pub fn format_duration(sec: u64) -> String {
+pub fn format_duration(sec: i64) -> String {
     let (minutes, seconds) = (sec / 60, sec % 60);
     let (hours, minutes) = (minutes / 60, minutes % 60);
     let (days, hours) = (hours / 24, hours % 24);
@@ -196,13 +299,73 @@ pub fn format_duration(sec: u64) -> String {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 /// Format a UTC date value into a humanized string (eg "1 week ago" instead of a formal date string)
 pub fn format_date(d: &DateTime<Utc>) -> String {
     let utc: DateTime<Utc> = Utc::now();
 
     let duration = utc.signed_duration_since(*d);
 
-    if duration.num_weeks() >= 52 {
+    if duration.num_seconds() < 0 {
+        // Our duration is negative, so we need to speak about the future
+        if -duration.num_weeks() >= 52 {
+            let num_years = -duration.num_weeks() / 52;
+
+            format!(
+                "{} year{} from now",
+                num_years,
+                if num_years == 1 { "" } else { "s" }
+            )
+        } else if -duration.num_weeks() >= 4 {
+            let num_months = -duration.num_weeks() / 4;
+
+            format!(
+                "{} month{} from now",
+                num_months,
+                if num_months == 1 { "" } else { "s" }
+            )
+        } else if -duration.num_weeks() >= 1 {
+            let num_weeks = -duration.num_weeks();
+
+            format!(
+                "{} week{} from now",
+                num_weeks,
+                if num_weeks == 1 { "" } else { "s" }
+            )
+        } else if -duration.num_days() >= 1 {
+            let num_days = -duration.num_days();
+
+            format!(
+                "{} day{} from now",
+                num_days,
+                if num_days == 1 { "" } else { "s" }
+            )
+        } else if -duration.num_hours() >= 1 {
+            let num_hours = -duration.num_hours();
+
+            format!(
+                "{} hour{} from now",
+                num_hours,
+                if num_hours == 1 { "" } else { "s" }
+            )
+        } else if -duration.num_minutes() >= 1 {
+            let num_minutes = -duration.num_minutes();
+
+            format!(
+                "{} min{} from now",
+                num_minutes,
+                if num_minutes == 1 { "" } else { "s" }
+            )
+        } else {
+            let num_seconds = -duration.num_seconds();
+
+            format!(
+                "{} sec{} from now",
+                num_seconds,
+                if num_seconds == 1 { "" } else { "s" }
+            )
+        }
+    } else if duration.num_weeks() >= 52 {
         let num_years = duration.num_weeks() / 52;
 
         format!(

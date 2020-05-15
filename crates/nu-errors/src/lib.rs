@@ -3,9 +3,7 @@ use bigdecimal::BigDecimal;
 use derive_new::new;
 use getset::Getters;
 use language_reporting::{Diagnostic, Label, Severity};
-use nu_source::{
-    b, DebugDocBuilder, HasFallibleSpan, PrettyDebug, Span, Spanned, SpannedItem, TracableContext,
-};
+use nu_source::{b, DebugDocBuilder, HasFallibleSpan, PrettyDebug, Span, Spanned, SpannedItem};
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -15,7 +13,7 @@ use std::ops::Range;
 /// A structured reason for a ParseError. Note that parsing in nu is more like macro expansion in
 /// other languages, so the kinds of errors that can occur during parsing are more contextual than
 /// you might expect.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub enum ParseErrorReason {
     /// The parser encountered an EOF rather than what it was expecting
     Eof { expected: String, span: Span },
@@ -40,7 +38,7 @@ pub enum ParseErrorReason {
 }
 
 /// A newtype for `ParseErrorReason`
-#[derive(Debug, Clone, Eq, PartialEq, Getters)]
+#[derive(Debug, Clone, Getters, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct ParseError {
     #[get = "pub"]
     reason: ParseErrorReason,
@@ -305,6 +303,9 @@ impl PrettyDebug for ShellError {
             ProximateShellError::UntaggedRuntimeError { reason } => {
                 b::error("Unknown Error") + b::delimit("(", b::description(reason), ")")
             }
+            ProximateShellError::ExternalPlaceholderError => {
+                b::error("non-zero external exit code")
+            }
         }
     }
 }
@@ -413,38 +414,15 @@ impl ShellError {
         .start()
     }
 
-    pub fn parse_error(
-        error: nom::Err<(
-            nom_locate::LocatedSpanEx<&str, TracableContext>,
-            nom::error::ErrorKind,
-        )>,
-    ) -> ShellError {
-        use language_reporting::*;
-
-        match error {
-            nom::Err::Incomplete(_) => {
-                // TODO: Get span of EOF
-                let diagnostic = Diagnostic::new(
-                    Severity::Error,
-                    "Parse Error: Unexpected end of line".to_string(),
-                );
-
-                ShellError::diagnostic(diagnostic)
-            }
-            nom::Err::Failure(span) | nom::Err::Error(span) => {
-                let diagnostic = Diagnostic::new(Severity::Error, "Parse Error".to_string())
-                    .with_label(Label::new_primary(Span::from(span.0)));
-
-                ShellError::diagnostic(diagnostic)
-            }
-        }
-    }
-
     pub fn diagnostic(diagnostic: Diagnostic<Span>) -> ShellError {
         ProximateShellError::Diagnostic(ShellDiagnostic { diagnostic }).start()
     }
 
-    pub fn into_diagnostic(self) -> Diagnostic<Span> {
+    pub fn external_non_zero() -> ShellError {
+        ProximateShellError::ExternalPlaceholderError.start()
+    }
+
+    pub fn into_diagnostic(self) -> Option<Diagnostic<Span>> {
         match self.error {
             ProximateShellError::MissingValue { span, reason } => {
                 let mut d = Diagnostic::new(
@@ -456,12 +434,12 @@ impl ShellError {
                     d = d.with_label(Label::new_primary(span));
                 }
 
-                d
+                Some(d)
             }
             ProximateShellError::ArgumentError {
                 command,
                 error,
-            } => match error {
+            } => Some(match error {
                 ArgumentError::InvalidExternalWord => Diagnostic::new(
                     Severity::Error,
                     "Invalid bare word for Nu command (did you intend to invoke an external command?)".to_string())
@@ -521,7 +499,7 @@ impl ShellError {
                     ),
                 )
                 .with_label(Label::new_primary(command.span)),
-            },
+            }),
             ProximateShellError::TypeError {
                 expected,
                 actual:
@@ -529,9 +507,9 @@ impl ShellError {
                         item: Some(actual),
                         span,
                     },
-            } => Diagnostic::new(Severity::Error, "Type Error").with_label(
+            } => Some(Diagnostic::new(Severity::Error, "Type Error").with_label(
                 Label::new_primary(span)
-                    .with_message(format!("Expected {}, found {}", expected, actual)),
+                    .with_message(format!("Expected {}, found {}", expected, actual))),
             ),
             ProximateShellError::TypeError {
                 expected,
@@ -540,13 +518,13 @@ impl ShellError {
                         item: None,
                         span
                     },
-            } => Diagnostic::new(Severity::Error, "Type Error")
-                .with_label(Label::new_primary(span).with_message(expected)),
+            } => Some(Diagnostic::new(Severity::Error, "Type Error")
+                .with_label(Label::new_primary(span).with_message(expected))),
 
             ProximateShellError::UnexpectedEof {
                 expected, span
-            } => Diagnostic::new(Severity::Error, "Unexpected end of input".to_string())
-                .with_label(Label::new_primary(span).with_message(format!("Expected {}", expected))),
+            } => Some(Diagnostic::new(Severity::Error, "Unexpected end of input".to_string())
+                .with_label(Label::new_primary(span).with_message(format!("Expected {}", expected)))),
 
             ProximateShellError::RangeError {
                 kind,
@@ -556,13 +534,13 @@ impl ShellError {
                         item,
                         span
                     },
-            } => Diagnostic::new(Severity::Error, "Range Error").with_label(
+            } => Some(Diagnostic::new(Severity::Error, "Range Error").with_label(
                 Label::new_primary(span).with_message(format!(
                     "Expected to convert {} to {} while {}, but it was out of range",
                     item,
                     kind.display(),
                     operation
-                )),
+                ))),
             ),
 
             ProximateShellError::SyntaxError {
@@ -571,8 +549,8 @@ impl ShellError {
                         span,
                         item
                     },
-            } => Diagnostic::new(Severity::Error, "Syntax Error")
-                .with_label(Label::new_primary(span).with_message(item)),
+            } => Some(Diagnostic::new(Severity::Error, "Syntax Error")
+                .with_label(Label::new_primary(span).with_message(item))),
 
             ProximateShellError::MissingProperty { subpath, expr, .. } => {
 
@@ -591,7 +569,7 @@ impl ShellError {
 
                 }
 
-                diag
+                Some(diag)
             }
 
             ProximateShellError::InvalidIntegerIndex { subpath,integer } => {
@@ -606,17 +584,18 @@ impl ShellError {
 
                 diag = diag.with_label(Label::new_secondary(integer).with_message("integer"));
 
-                diag
+                Some(diag)
             }
 
-            ProximateShellError::Diagnostic(diag) => diag.diagnostic,
+            ProximateShellError::Diagnostic(diag) => Some(diag.diagnostic),
             ProximateShellError::CoerceError { left, right } => {
-                Diagnostic::new(Severity::Error, "Coercion error")
+                Some(Diagnostic::new(Severity::Error, "Coercion error")
                     .with_label(Label::new_primary(left.span).with_message(left.item))
-                    .with_label(Label::new_secondary(right.span).with_message(right.item))
+                    .with_label(Label::new_secondary(right.span).with_message(right.item)))
             }
 
-            ProximateShellError::UntaggedRuntimeError { reason } => Diagnostic::new(Severity::Error, format!("Error: {}", reason))
+            ProximateShellError::UntaggedRuntimeError { reason } => Some(Diagnostic::new(Severity::Error, format!("Error: {}", reason))),
+            ProximateShellError::ExternalPlaceholderError => None,
         }
     }
 
@@ -762,6 +741,7 @@ pub enum ProximateShellError {
     UntaggedRuntimeError {
         reason: String,
     },
+    ExternalPlaceholderError,
 }
 
 impl ProximateShellError {
@@ -793,6 +773,7 @@ impl HasFallibleSpan for ProximateShellError {
             ProximateShellError::Diagnostic(_) => return None,
             ProximateShellError::CoerceError { left, right } => left.span.until(right.span),
             ProximateShellError::UntaggedRuntimeError { .. } => return None,
+            ProximateShellError::ExternalPlaceholderError => return None,
         })
     }
 }
@@ -879,6 +860,12 @@ impl std::convert::From<serde_json::Error> for ShellError {
 
 impl std::convert::From<Box<dyn std::error::Error + Send + Sync>> for ShellError {
     fn from(input: Box<dyn std::error::Error + Send + Sync>) -> ShellError {
+        ShellError::untagged_runtime_error(format!("{:?}", input))
+    }
+}
+
+impl std::convert::From<glob::PatternError> for ShellError {
+    fn from(input: glob::PatternError) -> ShellError {
         ShellError::untagged_runtime_error(format!("{:?}", input))
     }
 }

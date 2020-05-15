@@ -97,23 +97,13 @@ async fn host(tag: Tag) -> Value {
 
     // Uptime
     if let Ok(uptime) = uptime_result {
-        let mut uptime_dict = TaggedDictBuilder::with_capacity(&tag, 4);
-
         let uptime = uptime.get::<time::second>().round() as i64;
-        let days = uptime / (60 * 60 * 24);
-        let hours = (uptime - days * 60 * 60 * 24) / (60 * 60);
-        let minutes = (uptime - days * 60 * 60 * 24 - hours * 60 * 60) / 60;
-        let seconds = uptime % 60;
 
-        uptime_dict.insert_untagged("days", UntaggedValue::int(days));
-        uptime_dict.insert_untagged("hours", UntaggedValue::int(hours));
-        uptime_dict.insert_untagged("mins", UntaggedValue::int(minutes));
-        uptime_dict.insert_untagged("secs", UntaggedValue::int(seconds));
-
-        dict.insert_value("uptime", uptime_dict);
+        dict.insert_untagged("uptime", UntaggedValue::duration(uptime));
     }
 
-    // Users
+    // Sessions
+    // note: the heim host module has nomenclature "users"
     let mut users = host::users();
     let mut user_vec = vec![];
     while let Some(user) = users.next().await {
@@ -125,7 +115,7 @@ async fn host(tag: Tag) -> Value {
         }
     }
     let user_list = UntaggedValue::Table(user_vec);
-    dict.insert_untagged("users", user_list);
+    dict.insert_untagged("sessions", user_list);
 
     dict.into_value()
 }
@@ -133,6 +123,7 @@ async fn host(tag: Tag) -> Value {
 async fn disks(tag: Tag) -> Option<UntaggedValue> {
     let mut output = vec![];
     let mut partitions = disk::partitions_physical();
+
     while let Some(part) = partitions.next().await {
         if let Ok(part) = part {
             let mut dict = TaggedDictBuilder::with_capacity(&tag, 6);
@@ -227,6 +218,7 @@ async fn temp(tag: Tag) -> Option<UntaggedValue> {
     let mut output = vec![];
 
     let mut sensors = sensors::temperatures();
+
     while let Some(sensor) = sensors.next().await {
         if let Ok(sensor) = sensor {
             let mut dict = TaggedDictBuilder::new(&tag);
@@ -271,6 +263,7 @@ async fn temp(tag: Tag) -> Option<UntaggedValue> {
 async fn net(tag: Tag) -> Option<UntaggedValue> {
     let mut output = vec![];
     let mut io_counters = net::io_counters();
+
     while let Some(nic) = io_counters.next().await {
         if let Ok(nic) = nic {
             let mut network_idx = TaggedDictBuilder::with_capacity(&tag, 3);
