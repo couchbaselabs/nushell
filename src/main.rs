@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use log::LevelFilter;
 use nu_cli::utils::test_bins as binaries;
+use nu_cli::Prompt;
 use nu_cli::{create_default_context, EnvironmentSyncer};
 use std::error::Error;
 use std::fs::File;
@@ -160,7 +161,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let mut syncer = EnvironmentSyncer::new();
             let context = create_default_context(&mut syncer, true)?;
-            futures::executor::block_on(nu_cli::cli(syncer, context))?;
+            futures::executor::block_on(nu_cli::cli(syncer, context, None::<Box<dyn Prompt>>))?;
         }
     }
 
