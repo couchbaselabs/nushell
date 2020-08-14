@@ -7,17 +7,17 @@ use crate::context::Context;
 use crate::git::current_branch;
 use crate::path::canonicalize;
 use crate::prelude::*;
+use crate::prompt::Prompt;
 use crate::shell::completer::NuCompleter;
 use crate::shell::Helper;
 use crate::EnvironmentSyncer;
 use futures_codec::FramedRead;
+use log::{debug, trace};
 use nu_errors::{ProximateShellError, ShellDiagnostic, ShellError};
 use nu_protocol::hir::{ClassifiedCommand, Expression, InternalCommand, Literal, NamedArguments};
 use nu_protocol::{Primitive, ReturnSuccess, Signature, UntaggedValue, Value};
 #[allow(unused)]
 use nu_source::Tagged;
-
-use log::{debug, trace};
 use rustyline::config::{ColorMode, CompletionType, Config};
 use rustyline::error::ReadlineError;
 use rustyline::{self, config::Configurer, At, Cmd, Editor, KeyPress, Movement, Word};
@@ -714,6 +714,7 @@ pub fn set_rustyline_configuration() -> (Editor<Helper>, IndexMap<String, Value>
 pub async fn cli(
     mut syncer: EnvironmentSyncer,
     mut context: Context,
+    custom_prompt: Option<Box<dyn Prompt>>,
 ) -> Result<(), Box<dyn Error>> {
     let _ = load_plugins(&mut context);
 
@@ -855,7 +856,7 @@ pub async fn cli(
             }
         };
 
-        let prompt = {
+        let mut prompt = {
             if let Ok(bytes) = strip_ansi_escapes::strip(&colored_prompt) {
                 String::from_utf8_lossy(&bytes).to_string()
             } else {
@@ -863,7 +864,14 @@ pub async fn cli(
             }
         };
 
-        rl.helper_mut().expect("No helper").colored_prompt = colored_prompt;
+        // If we have a custom prompt passed in via the CLI, override the prompt
+        // we just tried to build up. This is all super inefficient and should be
+        // refactored, but it works good enough for now.
+        if let Some(cp) = custom_prompt.as_ref() {
+            prompt = cp.get();
+        }
+
+        rl.helper_mut().expect("No helper").colored_prompt = prompt.clone();
         let mut initial_command = Some(String::new());
         let mut readline = Err(ReadlineError::Eof);
         while let Some(ref cmd) = initial_command {

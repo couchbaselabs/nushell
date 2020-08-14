@@ -5,6 +5,7 @@ use nu_cli::{create_default_context, EnvironmentSyncer};
 use std::error::Error;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
+use nu_cli::Prompt;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new("nushell")
@@ -155,7 +156,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => {
             let mut syncer = EnvironmentSyncer::new();
             let context = create_default_context(&mut syncer, true)?;
-            futures::executor::block_on(nu_cli::cli(syncer, context))?;
+            futures::executor::block_on(nu_cli::cli(syncer, context, None::<Box<dyn Prompt>>))?;
         }
     }
 
