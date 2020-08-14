@@ -133,16 +133,16 @@ pub async fn cli(
     let mut session_text = String::new();
     let mut line_start: usize = 0;
 
-    let skip_welcome_message = configuration
-        .var("skip_welcome_message")
-        .map(|x| x.is_true())
-        .unwrap_or(false);
-    if !skip_welcome_message {
-        println!(
-            "Welcome to Nushell {} (type 'help' for more info)",
-            clap::crate_version!()
-        );
-    }
+    // let skip_welcome_message = configuration
+    //     .var("skip_welcome_message")
+    //     .map(|x| x.is_true())
+    //     .unwrap_or(false);
+    // if !skip_welcome_message {
+    //     println!(
+    //         "Welcome to Nushell {} (type 'help' for more info)",
+    //         clap::crate_version!()
+    //     );
+    // }
 
     #[cfg(windows)]
     {
