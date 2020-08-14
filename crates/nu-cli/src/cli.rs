@@ -27,6 +27,7 @@ use nu_command::script::{print_err, run_script_standalone};
 use rustyline::{self, error::ReadlineError};
 
 use crate::EnvironmentSyncer;
+use crate::Prompt;
 use nu_errors::ShellError;
 use nu_parser::ParserScope;
 use nu_protocol::{UntaggedValue, Value};
@@ -96,8 +97,11 @@ pub async fn run_script_file(
 
 /// The entry point for the CLI. Will register all known internal commands, load experimental commands, load plugins, then prepare the prompt and line reader for input.
 #[cfg(feature = "rustyline-support")]
-pub async fn cli(mut context: EvaluationContext) -> Result<(), Box<dyn Error>> {
-    let mut syncer = EnvironmentSyncer::new();
+pub async fn cli(
+    mut syncer: EnvironmentSyncer,
+    mut context: EvaluationContext,
+    custom_prompt: Option<Box<dyn Prompt>>,
+) -> Result<(), Box<dyn Error>> {
     let configuration = syncer.get_config();
 
     let mut rl = default_rustyline_editor_configuration();
@@ -205,7 +209,7 @@ pub async fn cli(mut context: EvaluationContext) -> Result<(), Box<dyn Error>> {
             }
         };
 
-        let prompt = {
+        let mut prompt = {
             if let Ok(bytes) = strip_ansi_escapes::strip(&colored_prompt) {
                 String::from_utf8_lossy(&bytes).to_string()
             } else {
@@ -213,7 +217,14 @@ pub async fn cli(mut context: EvaluationContext) -> Result<(), Box<dyn Error>> {
             }
         };
 
-        rl.helper_mut().expect("No helper").colored_prompt = colored_prompt;
+        // If we have a custom prompt passed in via the CLI, override the prompt
+        // we just tried to build up. This is all super inefficient and should be
+        // refactored, but it works good enough for now.
+        if let Some(cp) = custom_prompt.as_ref() {
+            prompt = cp.get();
+        }
+
+        rl.helper_mut().expect("No helper").colored_prompt = prompt.clone();
         let mut initial_command = Some(String::new());
         let mut readline = Err(ReadlineError::Eof);
         while let Some(ref cmd) = initial_command {

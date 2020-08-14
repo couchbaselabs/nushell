@@ -1,6 +1,8 @@
 use clap::{App, Arg};
 use log::LevelFilter;
 use nu_cli::create_default_context;
+use nu_cli::EnvironmentSyncer;
+use nu_cli::Prompt;
 use nu_command::utils::test_bins as binaries;
 use std::error::Error;
 use std::fs::File;
@@ -150,6 +152,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         None => {
+            let syncer = EnvironmentSyncer::new();
             let mut context = create_default_context(true)?;
 
             if !matches.is_present("skip-plugins") {
@@ -158,7 +161,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             #[cfg(feature = "rustyline-support")]
             {
-                futures::executor::block_on(nu_cli::cli(context))?;
+                futures::executor::block_on(nu_cli::cli(syncer, context, None::<Box<dyn Prompt>>))?;
             }
 
             #[cfg(not(feature = "rustyline-support"))]
